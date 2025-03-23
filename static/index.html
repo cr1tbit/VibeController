@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ESP Web Tools</title>
+    <meta
+      name="description"
+      content="Antcontroller flasher test."
+    />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="color-scheme" content="dark light" />
+    <style>
+      body {
+        font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Ubuntu, sans-serif;
+        padding: 0;
+        margin: 0;
+        line-height: 1.4;
+      }
+      .content {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 12px;
+      }
+      h2 {
+        margin-top: 2em;
+      }
+      h3 {
+        margin-top: 1.5em;
+      }
+      .projects {
+        display: flex;
+        text-align: center;
+        flex-wrap: wrap;
+        gap: 24px;
+        justify-content: center;
+      }
+      .projects a {
+        color: initial;
+        text-decoration: none;
+      }
+      .project .logo img {
+        height: 50px;
+      }
+      .project .name {
+        margin-top: 8px;
+      }
+      a {
+        color: #03a9f4;
+      }
+      .screenshot {
+        text-align: center;
+      }
+      .screenshot img {
+        max-width: 100%;
+        box-shadow: rgb(0 0 0 / 20%) 0px 2px 1px -1px,
+          rgb(0 0 0 / 14%) 0px 1px 1px 0px, rgb(0 0 0 / 12%) 0px 1px 3px 0px;
+        border-radius: 4px;
+      }
+      .screenshot i {
+        margin-top: 4px;
+        display: block;
+      }
+      .videoWrapper {
+        position: relative;
+        padding-bottom: 56.25%; /* 16:9 */
+        height: 0;
+        margin-bottom: 25px;
+        background: #ccc;
+      }
+      .hidden {
+        display: none;
+      }
+      .content pre {
+        display: block;
+        padding-left: 8px;
+        overflow-y: scroll;
+      }
+      .footer {
+        margin-top: 24px;
+        border-top: 1px solid #ccc;
+        padding-top: 24px;
+        text-align: center;
+      }
+      .footer .initiative {
+        font-style: italic;
+        margin-top: 16px;
+      }
+      table {
+        border-spacing: 0;
+      }
+      td {
+        padding: 8px;
+        border-bottom: 1px solid #ccc;
+      }
+      .install-section {
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #333;
+          color: #fff;
+        }
+        a {
+          color: #58a6ff;
+        }
+        .install-section {
+          border-color: #666;
+        }
+      }
+    </style>
+    <script module>
+      import("https://unpkg.com/esp-web-tools/dist/web/install-button.js?module");
+    </script>
+  </head>
+  <body>
+    <div class="content">
+      <h1>Antcontroller Flasher site</h1>
+      <h3>Current revision: v0.14.0</h3>
+      <div id="install-buttons">
+        <!-- Install buttons will be dynamically inserted here -->
+      </div>
+    </div>    
+
+    <script>
+      async function loadManifests() {
+        try {
+          const response = await fetch('/antctrl/manifests');
+          const data = await response.json();
+          const container = document.getElementById('install-buttons');
+          
+          // Group manifests by type
+          const manifestsByType = {};
+          data.available_manifests.forEach(manifest => {
+            if (!manifestsByType[manifest.type]) {
+              manifestsByType[manifest.type] = [];
+            }
+            manifestsByType[manifest.type].push(manifest);
+          });
+
+          // Create sections for each type
+          for (const [type, manifests] of Object.entries(manifestsByType)) {
+            const section = document.createElement('div');
+            section.className = 'install-section';
+            
+            const title = document.createElement('h2');
+            title.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            section.appendChild(title);
+
+            // Sort manifests by version (newest first)
+            manifests.sort((a, b) => parseInt(b.version) - parseInt(a.version));
+
+            // Create install button for each manifest
+            manifests.forEach(manifest => {
+              const buttonContainer = document.createElement('div');
+              buttonContainer.style.marginBottom = '20px';
+              
+              const versionLabel = document.createElement('div');
+              versionLabel.textContent = `Version ${manifest.version}`;
+              versionLabel.style.marginBottom = '5px';
+              buttonContainer.appendChild(versionLabel);
+
+              const button = document.createElement('esp-web-install-button');
+              button.setAttribute('manifest', manifest.url);
+              button.innerHTML = `
+                <i slot="unsupported">
+                  The demo is not available because your browser does not support Web
+                  Serial. Open this page in Google Chrome or Microsoft Edge instead.
+                </i>
+              `;
+              buttonContainer.appendChild(button);
+              
+              section.appendChild(buttonContainer);
+            });
+
+            container.appendChild(section);
+          }
+        } catch (error) {
+          console.error('Error loading manifests:', error);
+          const container = document.getElementById('install-buttons');
+          container.innerHTML = '<p>Error loading firmware manifests. Please try again later.</p>';
+        }
+      }
+
+      // Load manifests when the page loads
+      document.addEventListener('DOMContentLoaded', loadManifests);
+    </script>
+  </body>
+</html>
