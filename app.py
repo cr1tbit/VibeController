@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, send_from_directory
 import os
 import re
+import glob
 
 app = Flask(__name__)
 
@@ -91,48 +92,68 @@ def read_readme_for_version(version):
 def get_available_manifests():
     """Get a list of all available firmware versions and their types."""
     if not os.path.exists('fw'):
+        print("Debug: 'fw' directory not found.")
         return []
     
-    # Dictionary to store manifests grouped by version
-    version_groups = {}
-    
+    version_data = []
+    print(f"Debug: Scanning directories in 'fw': {os.listdir('fw')}")
     for version_dir in os.listdir('fw'):
-        if not os.path.isdir(os.path.join('fw', version_dir)):
+        version_path = os.path.join('fw', version_dir)
+        if not os.path.isdir(version_path):
+            print(f"Debug: Skipping non-directory item: {version_dir}")
             continue
             
-        # Initialize version group if not exists
-        if version_dir not in version_groups:
-            version_groups[version_dir] = []
-            
-        # Check each firmware type
+        # Find the latest modification time for this version based on a .bin file
+        bin_files = glob.glob(os.path.join(version_path, '*.bin'))
+        latest_mtime = 0
+        print(f"Debug: Checking bin files for version {version_dir}: {bin_files}")
+        if bin_files:
+            try:
+                # Get the modification time of the first found .bin file
+                # We could iterate through all to find truly latest, but first one is simpler.
+                latest_mtime = os.path.getmtime(bin_files[0])
+                print(f"Debug: Latest mtime for {version_dir} (from {bin_files[0]}): {latest_mtime}")
+            except Exception as e:
+                print(f"Error getting modification time for {bin_files[0]}: {e}")
+
+        # Read readme content
+        readme_content = read_readme_for_version(version_dir)
+        
+        # Collect available manifests for this version
+        manifests_list = []
+        print(f"Debug: Collecting manifests for version: {version_dir}")
         for firmware_type in ['fullimage', 'fwonly', 'filesystem']:
             if check_firmware_exists(version_dir, firmware_type):
-                version_groups[version_dir].append({
+                manifests_list.append({
                     'type': firmware_type,
                     'url': f'/antctrl/manifest-{version_dir}-{firmware_type}.json'
                 })
+                print(f"Debug: Found manifest for {version_dir}-{firmware_type}")
+            else:
+                print(f"Debug: No manifest found for {version_dir}-{firmware_type}")
+
+        # Only include this version if there's at least one manifest
+        if manifests_list:
+            version_data.append({
+                'version': version_dir,
+                'manifests': manifests_list,
+                'readme': readme_content,
+                'latest_mtime': latest_mtime
+            })
+            print(f"Debug: Added version {version_dir} to version_data.")
+        else:
+            print(f"Debug: No manifests found for version {version_dir}, skipping.")
+            pass # Skip versions with no manifests
     
-    # Convert to list of version groups
-    available_manifests = [
-        {
-            'version': version,
-            'manifests': manifests,
-            'readme': read_readme_for_version(version)
-        }
-        for version, manifests in version_groups.items()
-    ]
+    # Sort by latest modification time in descending order
+    print("Debug: Sorting version_data by latest modification time.")
+    version_data.sort(key=lambda x: x.get('latest_mtime', 0), reverse=True)
     
-    # Sort by version number in descending order
-    available_manifests.sort(key=lambda x: int(x['version']), reverse=True)
-    
-    return available_manifests
+    print(f"Debug: Final version_data being returned: {version_data}")
+    return version_data
 
 @app.route('/manifest-<version>-<type>.json')
 def get_manifest(version, type):
-    # Validate version format (should be numbers only)
-    if not re.match(r'^\d+$', version):
-        return jsonify({"error": "Invalid version format"}), 400
-    
     # Determine which manifest type to generate
     if type == 'fullimage':
         manifest = generate_fullimage_manifest(version)
@@ -168,10 +189,6 @@ def index():
 @app.route('/fw/<version>/<filename>')
 def serve_firmware(version, filename):
     """Serve firmware files from the fw directory."""
-    # Validate version format (should be numbers only)
-    if not re.match(r'^\d+$', version):
-        return jsonify({"error": "Invalid version format"}), 400
-    
     # Validate filename to prevent directory traversal
     if not re.match(r'^(fullimage|firmware|filesystem)\.bin$', filename):
         return jsonify({"error": "Invalid filename"}), 400
