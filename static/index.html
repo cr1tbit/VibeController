@@ -21,6 +21,23 @@
         max-width: 600px;
         margin: 0 auto;
         padding: 12px;
+        display: flex;
+        gap: 20px;
+        max-width: 1000px;
+      }
+      .readme-container {
+        flex: 2;
+        min-width: 250px;
+        overflow-y: auto;
+        padding-right: 10px;
+        border-right: 1px solid #444;
+        padding-left: 10px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+      .firmware-list-container {
+        flex: 1;
+        min-width: 200px;
       }
       h2 {
         margin-top: 2em;
@@ -143,45 +160,130 @@
           border-color: #666;
         }
       }
+      .readme-container h1, .readme-container h2, .readme-container h3, .readme-container h4, .readme-container h5, .readme-container h6 {
+          margin-top: 1.5em;
+          margin-bottom: 0.5em;
+          line-height: 1.2;
+      }
+      .readme-container h1 {
+          border-bottom: 2px solid #444;
+          padding-bottom: 0.3em;
+      }
+      .readme-container h2 {
+          border-bottom: 1px solid #444;
+          padding-bottom: 0.3em;
+      }
+      .readme-container p {
+          margin-top: 0.8em;
+          margin-bottom: 0.8em;
+      }
+      .readme-container ul, .readme-container ol {
+          margin-top: 0.8em;
+          margin-bottom: 0.8em;
+          padding-left: 20px;
+      }
+      .readme-container li {
+          margin-bottom: 0.4em;
+      }
+      .readme-container code {
+          font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+          background-color: rgba(128, 128, 128, 0.2);
+          padding: 0.2em 0.4em;
+          border-radius: 3px;
+      }
+      .readme-container pre {
+          background-color: rgba(128, 128, 128, 0.1);
+          padding: 1em;
+          border-radius: 5px;
+          overflow-x: auto;
+          margin-top: 1em;
+          margin-bottom: 1em;
+      }
+      .readme-container pre code {
+          background-color: transparent;
+          padding: 0;
+          border-radius: 0;
+      }
+      .readme-container table {
+          border-collapse: collapse;
+          margin: 1em 0;
+          width: 100%;
+      }
+      .readme-container th, .readme-container td {
+          border: 1px solid #444;
+          padding: 0.6em 1em;
+          text-align: left;
+      }
+      .readme-container th {
+          background-color: #444;
+      }
+      .readme-container img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 1em 0;
+      }
     </style>
     <script module>
       import("https://unpkg.com/esp-web-tools/dist/web/install-button.js?module");
     </script>
+    <!-- Script to load Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.0.10/marked.min.js"></script>
   </head>
   <body>
     <div class="content">
-      <h1>Antcontroller Flasher site</h1>
-      <div id="install-buttons">
-        <!-- Install buttons will be dynamically inserted here -->
+      <div class="readme-container">
+        <div id="readme-content"></div>
+      </div>
+
+      <div class="firmware-list-container">
+        <h3>Firmware list:</h3>
+        <div id="install-buttons">
+          <!-- Install buttons will be dynamically inserted here -->
+        </div>
       </div>
     </div>    
 
     <script>
+      async function loadReadme() {
+        try {
+          const response = await fetch('/static/readme.md');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const readmeText = await response.text();
+          const readmeElement = document.getElementById('readme-content');
+          // Use Marked.js to convert Markdown to HTML
+          readmeElement.innerHTML = marked.parse(readmeText);
+        } catch (error) {
+          console.error('Error loading readme:', error);
+          const readmeElement = document.getElementById('readme-content');
+          readmeElement.innerHTML = '<p>Error loading README.md.</p>';
+        }
+      }
+
       async function loadManifests() {
         try {
           const response = await fetch('/antctrl/manifests');
           const data = await response.json();
           const container = document.getElementById('install-buttons');
           
-          // Create sections for each version
           data.available_manifests.forEach(versionGroup => {
             const section = document.createElement('div');
             section.className = 'install-section';
             
             const title = document.createElement('h2');
-            title.textContent = `Version ${versionGroup.version}`;
+            title.textContent = `${versionGroup.version}`;
             section.appendChild(title);
 
-            // Display timestamp if available
             if (versionGroup.latest_mtime > 0) {
               const timestampElement = document.createElement('p');
               const date = new Date(versionGroup.latest_mtime * 1000);
               timestampElement.textContent = `Last updated: ${date.toLocaleString()}`;
-              timestampElement.className = 'timestamp'; // Add a class for styling
+              timestampElement.className = 'timestamp';
               section.appendChild(timestampElement);
             }
 
-            // Display readme content if available
             if (versionGroup.readme) {
               const readmeElement = document.createElement('div');
               readmeElement.innerHTML = `<pre>${versionGroup.readme}</pre>`;
@@ -189,12 +291,10 @@
               section.appendChild(readmeElement);
             }
 
-            // Wrapper for horizontal buttons
             const buttonsWrapper = document.createElement('div');
             buttonsWrapper.className = 'install-buttons-wrapper';
             section.appendChild(buttonsWrapper);
 
-            // Create install button for each manifest type in this version
             versionGroup.manifests.forEach(manifest => {
               const buttonContainer = document.createElement('div');
               buttonContainer.className = 'button-container';
@@ -226,8 +326,8 @@
         }
       }
 
-      // Load manifests when the page loads
       document.addEventListener('DOMContentLoaded', loadManifests);
+      document.addEventListener('DOMContentLoaded', loadReadme);
     </script>
   </body>
 </html>
